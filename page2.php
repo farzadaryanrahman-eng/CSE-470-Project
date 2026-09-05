@@ -4,6 +4,18 @@ if (!isset($_SESSION['username'])) {
     header("Location: register.html");
     exit();
 }
+
+// Check admin role so the admin link only shows for admins
+require_once('DBconnect.php');
+$isAdmin = false;
+$stmt = $conn->prepare("SELECT role FROM consumer WHERE Name = ? LIMIT 1");
+$stmt->bind_param("s", $_SESSION['username']);
+$stmt->execute();
+$roleRow = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+if ($roleRow && $roleRow['role'] === 'admin') {
+    $isAdmin = true;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -137,6 +149,36 @@ if (!isset($_SESSION['username'])) {
 			background-color: #cc0000;
 		}
 
+        .quick-links {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 30px;
+            max-width: 700px;
+        }
+        .quick-links a {
+            background: #fff;
+            color: #555;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.08);
+            transition: 0.2s;
+        }
+        .quick-links a:hover {
+            background: var(--accent-pink);
+            color: #fff;
+        }
+        .quick-links a.admin-link {
+            background: #2c3e50;
+            color: #fff;
+        }
+        .quick-links a.admin-link:hover {
+            background: #1a252f;
+        }
 
 		@media (max-width: 600px) {
 			.logout-btn {
@@ -176,6 +218,21 @@ if (!isset($_SESSION['username'])) {
             <span class="circle-label">Paw Mart</span>
         </a>
     </div>
+
+    <div class="quick-links">
+        <a href="profile.php"><i class="fas fa-id-card"></i> My Profile & Pets</a>
+        <a href="video_consultation.php"><i class="fas fa-video"></i> Video Consultation</a>
+        <a href="chatbot.php"><i class="fas fa-robot"></i> AI Pet Assistant</a>
+        <a href="appointment_management.php"><i class="fas fa-calendar-check"></i> My Appointments</a>
+        <a href="health_report.php"><i class="fas fa-heartbeat"></i> AI Health Report</a>
+        <a href="wishlist.php"><i class="fas fa-heart"></i> Wishlist</a>
+        <a href="order_management.php"><i class="fas fa-receipt"></i> My Orders</a>
+        <a href="payment_history.php"><i class="fas fa-file-invoice-dollar"></i> Payment History</a>
+        <?php if ($isAdmin): ?>
+            <a href="admin_inventory.php" class="admin-link"><i class="fas fa-boxes"></i> Inventory Admin</a>
+        <?php endif; ?>
+    </div>
+
 	<img src="panda.jpg" height="250" width="250" style="display: block; margin: 0 auto 10px auto; border-radius: 30%;">
 	<a href="logout.php" class="logout-btn">
     <i class="fas fa-sign-out-alt"></i> Log Out
