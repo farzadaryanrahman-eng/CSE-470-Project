@@ -19,6 +19,11 @@ if (isset($_POST['confirm_payment'])) {
                 mysqli_query($conn, $sql);
             }
             $conn->commit();
+            if (!empty($_SESSION['username']) && file_exists(__DIR__ . '/payment_log.php')) {
+                require_once __DIR__ . '/payment_log.php';
+                $cashMethod = (isset($_POST['payment']) && $_POST['payment'] === 'card') ? 'card' : 'cash';
+                pawmart_log_cart_payment($conn, $_SESSION['username'], $cashMethod, 'paid', null, $_SESSION['cart']);
+            }
             $_SESSION['cart'] = [];
             $message = "Payment Successful! Stock updated.";
         } catch (Exception $e) {
@@ -110,6 +115,26 @@ if (isset($_POST['confirm_payment'])) {
     .confirm-btn:hover {
       background: #5DE2E7;
     }
+    .home-btn, .hist-btn {
+      display: inline-block;
+      margin-top: 12px;
+      background: #10b981;
+      color: #fff;
+      text-decoration: none;
+      padding: 10px 14px;
+      border-radius: 8px;
+    }
+    .stripe-btn {
+      display: block;
+      margin-top: 8px;
+      padding: 12px;
+      background: #635bff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+    }
+    .or-div { margin: 16px 0 8px; color: #555; font-size: 13px; }
   
   </style>
 </head>
@@ -119,6 +144,7 @@ if (isset($_POST['confirm_payment'])) {
     <?php if ($message): ?>
         <p class="status-msg"><?php echo $message; ?></p>
         <a href="pawmart.php" class="home-btn">Return to Shop</a>
+        <a href="payment_history.php" class="hist-btn">Payment History</a>
     <?php else: ?>
         <form method="POST">
             <div class="option">
@@ -131,6 +157,8 @@ if (isset($_POST['confirm_payment'])) {
             </div>
             <button type="submit" name="confirm_payment" class="confirm-btn">Confirm Payment</button>
         </form>
+        <p class="or-div">Pay by card through Stripe (test mode)</p>
+        <a class="stripe-btn" href="stripe_checkout.php">Pay with Stripe</a>
     <?php endif; ?>
   </div>
 </body>

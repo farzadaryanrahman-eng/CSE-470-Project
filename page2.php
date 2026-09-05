@@ -175,6 +175,16 @@ if (!isset($_SESSION['username'])) {
             <i class="fas fa-shopping-basket"></i>
             <span class="circle-label">Paw Mart</span>
         </a>
+
+        <a href="video_consultation.php" class="circle">
+            <i class="fas fa-video"></i>
+            <span class="circle-label">Video</span>
+        </a>
+
+        <a href="payment_history.php" class="circle">
+            <i class="fas fa-file-invoice-dollar"></i>
+            <span class="circle-label">Payments</span>
+        </a>
     </div>
 	<img src="panda.jpg" height="250" width="250" style="display: block; margin: 0 auto 10px auto; border-radius: 30%;">
 	<a href="logout.php" class="logout-btn">
