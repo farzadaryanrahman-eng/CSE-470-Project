@@ -35,7 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
     exit();
 }
 
-$stmt = $conn->prepare("SELECT item_name, item_price FROM wishlist WHERE username = ? ORDER BY added_at DESC");
+$stmt = $conn->prepare("SELECT item_name, item_price FROM wishlist WHERE username = ? ORDER BY id DESC");
 $stmt->bind_param("s", $user);
 $stmt->execute();
 $res = $stmt->get_result();
