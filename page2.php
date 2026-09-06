@@ -9,12 +9,14 @@ if (!isset($_SESSION['username'])) {
 require_once('DBconnect.php');
 $isAdmin = false;
 $stmt = $conn->prepare("SELECT role FROM consumer WHERE Name = ? LIMIT 1");
-$stmt->bind_param("s", $_SESSION['username']);
-$stmt->execute();
-$roleRow = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-if ($roleRow && $roleRow['role'] === 'admin') {
-    $isAdmin = true;
+if ($stmt) {
+    $stmt->bind_param("s", $_SESSION['username']);
+    $stmt->execute();
+    $roleRow = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($roleRow && $roleRow['role'] === 'admin') {
+        $isAdmin = true;
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -190,7 +192,7 @@ if ($roleRow && $roleRow['role'] === 'admin') {
     </style>
 </head>
 <body>
-	<h1>Welcome, <?php echo $_SESSION['username']; ?>!</h1>
+	<h1>Welcome, <?php echo htmlspecialchars($_SESSION['username']); ?>!</h1>
 
     <div class="stars-container">
         <div class="star" style="top: 10%; left: 10%; animation-delay: 0s;"></div>
@@ -216,6 +218,16 @@ if ($roleRow && $roleRow['role'] === 'admin') {
         <a href="pawmart.php" class="circle">
             <i class="fas fa-shopping-basket"></i>
             <span class="circle-label">Paw Mart</span>
+        </a>
+
+        <a href="video_consultation.php" class="circle">
+            <i class="fas fa-video"></i>
+            <span class="circle-label">Video</span>
+        </a>
+
+        <a href="payment_history.php" class="circle">
+            <i class="fas fa-file-invoice-dollar"></i>
+            <span class="circle-label">Payments</span>
         </a>
     </div>
 

@@ -1,66 +1,95 @@
 <?php
-// Feature 18: Payment History
 session_start();
-require_once('DBconnect.php');
+require_once __DIR__ . '/DBconnect.php';
+require_once __DIR__ . '/payment_log.php';
 
 if (!isset($_SESSION['username'])) {
-    header("Location: register.html");
+    header('Location: register.html');
     exit();
 }
-$user = $_SESSION['username'];
 
-$stmt = $conn->prepare("SELECT amount, method, status, stripe_session_id, created_at FROM payments WHERE username = ? ORDER BY created_at DESC");
-$stmt->bind_param("s", $user);
-$stmt->execute();
-$res = $stmt->get_result();
-$payments = [];
-while ($row = $res->fetch_assoc()) $payments[] = $row;
-$stmt->close();
+$user = $_SESSION['username'];
+$rows = [];
+$tableMissing = !pawmart_table_exists($conn, 'payments');
+
+if (!$tableMissing) {
+    $stmt = $conn->prepare(
+        'SELECT id, amount, method, status, stripe_session_id, items_json, created_at
+         FROM payments WHERE username = ? ORDER BY created_at DESC, id DESC'
+    );
+    $stmt->bind_param('s', $user);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $rows[] = $row;
+    }
+    $stmt->close();
+}
+
+function pawmart_format_items($json) {
+    $items = json_decode($json, true);
+    if (!is_array($items) || empty($items)) {
+        return '—';
+    }
+    $parts = [];
+    foreach ($items as $item) {
+        $name = isset($item['name']) ? $item['name'] : 'item';
+        $qty = isset($item['qty']) ? (int) $item['qty'] : 1;
+        $parts[] = htmlspecialchars($name) . ' × ' . $qty;
+    }
+    return implode(', ', $parts);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Payment History - Pet Care Zone</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-<style>
-    body { font-family:'Segoe UI',Arial,sans-serif; background:#e6f4ff; margin:0; padding:20px; }
-    h1 { text-align:center; color:#333; }
-    .container { max-width:800px; margin:0 auto; }
-    table { width:100%; border-collapse:collapse; background:#fff; border-radius:15px; overflow:hidden; box-shadow:0 4px 8px rgba(0,0,0,0.1); }
-    th, td { padding:12px; text-align:left; border-bottom:1px solid #eee; }
-    th { background:#ffb6c1; color:#fff; }
-    .status-Completed { color:#27ae60; font-weight:bold; }
-    .status-Pending { color:#e67e22; font-weight:bold; }
-    .status-Cancelled { color:#e74c3c; font-weight:bold; }
-    .method-badge { padding:3px 10px; border-radius:12px; font-size:0.8em; color:#fff; }
-    .method-cash { background:#27ae60; }
-    .method-card { background:#3498db; }
-    .empty { text-align:center; color:#888; padding:30px; }
-    .back-link { display:block; text-align:center; margin-top:20px; text-decoration:none; color:#555; }
-</style>
+  <meta charset="UTF-8">
+  <title>Payment History - PawMart</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #e6f4ff; margin: 0; padding: 20px; }
+    h1 { text-align: center; color: #333; }
+    .container { max-width: 900px; margin: 0 auto; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+    th { background: #ff6fa5; color: #fff; }
+    .empty { text-align: center; color: #777; padding: 30px; background: #fff; border-radius: 12px; }
+    .warn { background: #fff3cd; color: #856404; padding: 12px; border-radius: 10px; margin-bottom: 16px; }
+    .back-link { display: block; text-align: center; margin-top: 20px; text-decoration: none; color: #555; }
+    .method { text-transform: capitalize; }
+  </style>
 </head>
 <body>
 <div class="container">
-    <h1><i class="fas fa-file-invoice-dollar"></i> Payment History</h1>
+  <h1><i class="fas fa-file-invoice-dollar"></i> Payment History</h1>
 
-    <?php if (empty($payments)): ?>
-        <p class="empty">No payments recorded yet.</p>
-    <?php else: ?>
+  <?php if ($tableMissing): ?>
+    <p class="warn">The <code>payments</code> table is missing. Import <code>schema_additions_video_stripe.sql</code> in phpMyAdmin, then refresh.</p>
+  <?php elseif (empty($rows)): ?>
+    <p class="empty">No payments yet. Pay from Paw Mart with Stripe or confirm cash/card checkout.</p>
+  <?php else: ?>
     <table>
-        <tr><th>Date</th><th>Amount</th><th>Method</th><th>Status</th></tr>
-        <?php foreach ($payments as $p): ?>
+      <tr>
+        <th>Date</th>
+        <th>Items</th>
+        <th>Method</th>
+        <th>Status</th>
+        <th>Amount</th>
+      </tr>
+      <?php foreach ($rows as $row): ?>
         <tr>
-            <td><?php echo htmlspecialchars($p['created_at']); ?></td>
-            <td>$<?php echo number_format($p['amount'], 2); ?></td>
-            <td><span class="method-badge method-<?php echo htmlspecialchars($p['method']); ?>"><?php echo htmlspecialchars(ucfirst($p['method'])); ?></span></td>
-            <td class="status-<?php echo htmlspecialchars($p['status']); ?>"><?php echo htmlspecialchars($p['status']); ?></td>
+          <td><?php echo htmlspecialchars($row['created_at']); ?></td>
+          <td><?php echo pawmart_format_items($row['items_json']); ?></td>
+          <td class="method"><?php echo htmlspecialchars($row['method']); ?></td>
+          <td><?php echo htmlspecialchars($row['status']); ?></td>
+          <td>$<?php echo number_format((float) $row['amount'], 2); ?></td>
         </tr>
-        <?php endforeach; ?>
+      <?php endforeach; ?>
     </table>
-    <?php endif; ?>
+  <?php endif; ?>
 
-    <a href="page2.php" class="back-link"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+  <a href="pawmart.php" class="back-link"><i class="fas fa-arrow-left"></i> Back to shop</a>
+  <a href="page2.php" class="back-link">Back to dashboard</a>
 </div>
 </body>
 </html>

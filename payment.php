@@ -1,9 +1,4 @@
 <?php
-// UPDATED again for Feature 16 (Stripe) and Feature 18 (Payment History):
-// - "Cash" still works exactly as before, and now also logs a row into
-//   `payments` so it shows up in payment_history.php.
-// - "Card" now redirects to create_checkout_session.php for a real Stripe
-//   Checkout flow instead of just being a cosmetic radio button.
 session_start();
 
 require_once('DBconnect.php');
@@ -18,51 +13,25 @@ if (isset($_POST['confirm_payment'])) {
     $paymentMethod = $_POST['payment'] ?? 'cash';
 
     if ($paymentMethod === 'card') {
-        header("Location: create_checkout_session.php");
+        header("Location: stripe_checkout.php");
         exit();
     }
 
-    // Cash flow (unchanged logic, now also logs to `payments`)
     if (!empty($_SESSION['cart'])) {
-        $user = $_SESSION['username'] ?? 'guest';
-        $totalCost = 0;
-        foreach ($_SESSION['cart'] as $data) {
-            $totalCost += $data['qty'] * $data['price'];
-        }
-
         $conn->begin_transaction();
         try {
             foreach ($_SESSION['cart'] as $name => $data) {
                 $qty = $data['qty'];
-                $stmt = $conn->prepare("UPDATE items SET item_quantity = item_quantity - ? WHERE item_name = ?");
-                $stmt->bind_param("is", $qty, $name);
-                $stmt->execute();
-                $stmt->close();
+                $sql = "UPDATE items SET item_quantity = item_quantity - $qty WHERE item_name = '$name'";
+                mysqli_query($conn, $sql);
             }
-
-            $status = "Completed";
-            $orderStmt = $conn->prepare("INSERT INTO orders (username, total_amount, payment_method, status) VALUES (?, ?, ?, ?)");
-            $orderStmt->bind_param("sdss", $user, $totalCost, $paymentMethod, $status);
-            $orderStmt->execute();
-            $orderId = $orderStmt->insert_id;
-            $orderStmt->close();
-
-            $itemStmt = $conn->prepare("INSERT INTO order_items (order_id, item_name, quantity, price) VALUES (?, ?, ?, ?)");
-            foreach ($_SESSION['cart'] as $name => $data) {
-                $itemStmt->bind_param("isid", $orderId, $name, $data['qty'], $data['price']);
-                $itemStmt->execute();
-            }
-            $itemStmt->close();
-
-            // NEW: log this cash payment too (Feature 18 - Payment History)
-            $payStmt = $conn->prepare("INSERT INTO payments (order_id, username, amount, method, status) VALUES (?, ?, ?, 'cash', 'Completed')");
-            $payStmt->bind_param("isd", $orderId, $user, $totalCost);
-            $payStmt->execute();
-            $payStmt->close();
-
             $conn->commit();
+            if (!empty($_SESSION['username']) && file_exists(__DIR__ . '/payment_log.php')) {
+                require_once __DIR__ . '/payment_log.php';
+                pawmart_log_cart_payment($conn, $_SESSION['username'], 'cash', 'paid', null, $_SESSION['cart']);
+            }
             $_SESSION['cart'] = [];
-            $message = "Payment Successful! Stock updated. <a href='order_management.php' style='color:#059669;font-weight:bold;'>View your order &rarr;</a>";
+            $message = "Payment Successful! Stock updated.";
         } catch (Exception $e) {
             $conn->rollback();
             $message = "Error: " . $e->getMessage();
@@ -152,6 +121,26 @@ if (isset($_POST['confirm_payment'])) {
     .confirm-btn:hover {
       background: #5DE2E7;
     }
+    .home-btn, .hist-btn {
+      display: inline-block;
+      margin-top: 12px;
+      background: #10b981;
+      color: #fff;
+      text-decoration: none;
+      padding: 10px 14px;
+      border-radius: 8px;
+    }
+    .stripe-btn {
+      display: block;
+      margin-top: 8px;
+      padding: 12px;
+      background: #635bff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+    }
+    .or-div { margin: 16px 0 8px; color: #555; font-size: 13px; }
   
   </style>
 </head>
@@ -161,6 +150,7 @@ if (isset($_POST['confirm_payment'])) {
     <?php if ($message): ?>
         <p class="status-msg"><?php echo $message; ?></p>
         <a href="pawmart.php" class="home-btn">Return to Shop</a>
+        <a href="payment_history.php" class="hist-btn">Payment History</a>
     <?php else: ?>
         <form method="POST">
             <div class="option">
@@ -173,6 +163,8 @@ if (isset($_POST['confirm_payment'])) {
             </div>
             <button type="submit" name="confirm_payment" class="confirm-btn">Confirm Payment</button>
         </form>
+        <p class="or-div">Pay by card through Stripe (test mode)</p>
+        <a class="stripe-btn" href="stripe_checkout.php">Pay with Stripe</a>
     <?php endif; ?>
   </div>
 </body>
